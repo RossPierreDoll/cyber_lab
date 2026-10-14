@@ -1,5 +1,7 @@
 from flask import Flask, request, render_template_string
 import sqlite3
+import html
+
 app = Flask(__name__)
 
 def init_db():
@@ -37,7 +39,6 @@ def login():
     query = "SELECT username, secret_flag FROM users WHERE username = ? AND password = ?"
     
     try:
-        # Przekazujemy dane w krotce (tuple), a baza danych sama dba o bezpieczne podstawienie wartości
         cursor.execute(query, (username, password))
         user = cursor.fetchone()
         conn.close()
@@ -48,21 +49,23 @@ def login():
             return f"<h3>Błąd logowania!</h3><p>Nieprawidłowy login lub hasło.</p><hr><p><small>Wykonane zapytanie SQL: <code>{query}</code></small></p>"
     except Exception as e:
         return f"<h3>Błąd bazy danych!</h3><p>{e}</p><hr><p><small>Wykonane zapytanie SQL: <code>{query}</code></small></p>"
+
 @app.route('/xss_page')
 def xss_page():
-    query = request.args.get('query', '')
+    raw_query = request.args.get('query', '')
+    clean_query = html.escape(raw_query)  # Zamiana < na &lt; oraz > na &gt;
     
-    # CELOWO WPROWADZONA PODATNOŚĆ (Reflected XSS)
     html_template = f'''
-        <h3>Wyszukiwarka laboratorium (Podatna na XSS)</h3>
+        <h3>Wyszukiwarka laboratorium (Zabezpieczona XSS)</h3>
         <form action="/xss_page" method="GET">
-            <input type="text" name="query" value="{query}">
+            <input type="text" name="query" value="{clean_query}">
             <input type="submit" value="Szukaj">
         </form>
         <hr>
-        <p>Wyniki wyszukiwania dla frazy: <b>{query}</b></p>
+        <p>Wyniki wyszukiwania dla frazy: <b>{clean_query}</b></p>
     '''
     return render_template_string(html_template)
+
 if __name__ == '__main__':
     init_db()
     app.run(host='0.0.0.0', port=5000, debug=True)
